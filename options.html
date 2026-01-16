@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clash 规则管理器 - 设置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <h1 class="title">Clash 规则管理器 - 设置</h1>
+
+    <form id="settingsForm">
+      <div class="form-group">
+        <label for="token">GitHub Personal Access Token *</label>
+        <input type="password" id="token" placeholder="ghp_xxxxxxxxxxxx" required>
+        <small>需要 repo 权限。<a href="https://github.com/settings/tokens/new" target="_blank">创建 Token</a></small>
+      </div>
+
+      <div class="form-group">
+        <label for="owner">仓库所有者 *</label>
+        <input type="text" id="owner" placeholder="username" required>
+        <small>GitHub 用户名或组织名</small>
+      </div>
+
+      <div class="form-group">
+        <label for="repo">仓库名称 *</label>
+        <input type="text" id="repo" placeholder="clash-rules" required>
+      </div>
+
+      <div class="form-group">
+        <label for="branch">分支名称</label>
+        <input type="text" id="branch" placeholder="main" value="main">
+      </div>
+
+      <div class="form-group">
+        <label for="directFile">直连规则文件路径</label>
+        <input type="text" id="directFile" placeholder="direct.txt" value="direct.txt">
+      </div>
+
+      <div class="form-group">
+        <label for="proxyFile">代理规则文件路径</label>
+        <input type="text" id="proxyFile" placeholder="proxy.txt" value="proxy.txt">
+      </div>
+
+      <div class="button-group">
+        <button type="submit" class="btn btn-primary">保存设置</button>
+        <button type="button" id="testBtn" class="btn btn-secondary">测试连接</button>
+      </div>
+    </form>
+
+    <div id="message" class="message"></div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
