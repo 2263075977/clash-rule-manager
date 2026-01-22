@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Clash 规则管理器 - 设置</title>
   <link rel="stylesheet" href="options.css">
 </head>
+
 <body>
   <div class="container">
     <h1 class="title">Clash 规则管理器 - 设置</h1>
@@ -34,13 +36,10 @@
       </div>
 
       <div class="form-group">
-        <label for="directFile">直连规则文件路径</label>
-        <input type="text" id="directFile" placeholder="direct.txt" value="direct.txt">
-      </div>
-
-      <div class="form-group">
-        <label for="proxyFile">代理规则文件路径</label>
-        <input type="text" id="proxyFile" placeholder="proxy.txt" value="proxy.txt">
+        <label>规则分组配置</label>
+        <div id="ruleGroupsList" class="rule-groups-list"></div>
+        <button type="button" id="addRuleGroupBtn" class="btn btn-secondary" style="margin-top: 10px; width: 100%;">+
+          添加自定义规则分组</button>
       </div>
 
       <div class="button-group">
@@ -49,9 +48,22 @@
       </div>
     </form>
 
+    <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
+
+    <div class="form-group">
+      <label>配置备份</label>
+      <div class="button-group" style="margin-top: 10px;">
+        <button type="button" id="exportBtn" class="btn btn-secondary">导出配置</button>
+        <button type="button" id="importBtn" class="btn btn-secondary">导入配置</button>
+      </div>
+      <small>导出配置为 JSON 文件，或从 JSON 文件恢复配置。</small>
+      <input type="file" id="importFile" accept=".json" style="display: none;">
+    </div>
+
     <div id="message" class="message"></div>
   </div>
 
   <script src="options.js"></script>
 </body>
+
 </html>

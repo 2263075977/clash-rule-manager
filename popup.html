@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Clash 规则管理器</title>
   <link rel="stylesheet" href="popup.css">
 </head>
+
 <body>
   <div class="container">
     <h1 class="title">Clash 规则管理器</h1>
@@ -15,13 +17,8 @@
       <div id="domain" class="domain-display">加载中...</div>
     </div>
 
-    <div class="button-group">
-      <button id="addDirect" class="btn btn-direct">
-        ➕ 添加到直连规则
-      </button>
-      <button id="addProxy" class="btn btn-proxy">
-        🌐 添加到代理规则
-      </button>
+    <div id="quickActions" class="button-group-vertical">
+      <!-- 动态生成按钮 -->
     </div>
 
     <div id="toast" class="toast"></div>
@@ -34,4 +31,5 @@
   <script src="github-api.js"></script>
   <script src="popup.js"></script>
 </body>
+
 </html>

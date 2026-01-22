@@ -158,3 +158,26 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+.rule-group-item {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.rule-group-item input {
+  flex: 1;
+}
+
+.rule-group-item .btn-remove {
+  background: #dc3545;
+  color: white;
+  padding: 8px 12px;
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.rule-group-item .btn-remove:hover {
+  background: #c82333;
+}

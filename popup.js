@@ -2,12 +2,17 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
   const domainDisplay = document.getElementById('domain');
-  const addDirectBtn = document.getElementById('addDirect');
-  const addProxyBtn = document.getElementById('addProxy');
+  const quickActions = document.getElementById('quickActions');
   const settingsLink = document.getElementById('settingsLink');
   const toast = document.getElementById('toast');
 
   let currentDomain = '';
+
+  // 默认规则分组
+  const defaultRuleGroups = [
+    { name: '直连规则', path: 'direct.txt', type: 'direct' },
+    { name: '代理规则', path: 'proxy.txt', type: 'proxy' }
+  ];
 
   // 提取根域名（去掉子域名前缀）
   function extractRootDomain(hostname) {
@@ -49,67 +54,83 @@ document.addEventListener('DOMContentLoaded', async () => {
       domainDisplay.textContent = currentDomain;
     } else {
       domainDisplay.textContent = '无法获取域名';
-      addDirectBtn.disabled = true;
-      addProxyBtn.disabled = true;
     }
   } catch (error) {
     console.error('获取域名失败:', error);
     domainDisplay.textContent = '获取失败';
-    addDirectBtn.disabled = true;
-    addProxyBtn.disabled = true;
   }
 
-  // 检查是否已配置
-  const settings = await chrome.storage.sync.get(['token', 'owner', 'repo']);
+  // 检查已配置并渲染按钮
+  const settings = await chrome.storage.sync.get(['token', 'owner', 'repo', 'ruleGroups', 'directFile', 'proxyFile']);
+
   if (!settings.token || !settings.owner || !settings.repo) {
     showToast('请先配置 GitHub 设置', 'error');
-    addDirectBtn.disabled = true;
-    addProxyBtn.disabled = true;
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = '请先去设置页面配置';
+    btn.disabled = true;
+    quickActions.appendChild(btn);
+  } else {
+    // 处理规则分组逻辑（与 options.js 保持一致）
+    let groups = settings.ruleGroups;
+    if (!groups || groups.length === 0) {
+      if (settings.directFile || settings.proxyFile) {
+        groups = [];
+        if (settings.directFile) groups.push({ name: '直连规则', path: settings.directFile, type: 'direct' });
+        else groups.push({ name: '直连规则', path: 'direct.txt', type: 'direct' });
+
+        if (settings.proxyFile) groups.push({ name: '代理规则', path: settings.proxyFile, type: 'proxy' });
+        else groups.push({ name: '代理规则', path: 'proxy.txt', type: 'proxy' });
+      } else {
+        groups = JSON.parse(JSON.stringify(defaultRuleGroups));
+      }
+    }
+
+    // 渲染按钮
+    renderActionButtons(groups);
   }
 
-  // 添加到直连规则
-  addDirectBtn.addEventListener('click', async () => {
-    await addDomain('direct');
-  });
+  function renderActionButtons(groups) {
+    quickActions.innerHTML = '';
+    groups.forEach(group => {
+      const btn = document.createElement('button');
+      // 默认颜色逻辑：为了保持一定的视觉习惯，如果名字包含"直连"或 type 为 direct 用 direct 样式，否则用 proxy 样式或默认
+      // 这里简单起见，交替颜色或者统一颜色。这里为了区分，我们可以根据关键字
+      let btnClass = 'btn btn-proxy'; // 默认蓝色
+      if (group.name.includes('直连') || group.type === 'direct') {
+        btnClass = 'btn btn-direct'; // 绿色
+      } else if (group.name.includes('代理') || group.type === 'proxy') {
+        btnClass = 'btn btn-proxy';
+      }
 
-  // 添加到代理规则
-  addProxyBtn.addEventListener('click', async () => {
-    await addDomain('proxy');
-  });
+      btn.className = btnClass;
+      btn.innerHTML = `➕ 添加到 ${group.name}`;
+      btn.style.marginTop = '0'; // reset because of flex gap
 
-  // 打开设置页面
-  settingsLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    chrome.runtime.openOptionsPage();
-  });
+      if (!currentDomain) btn.disabled = true;
+
+      btn.addEventListener('click', async () => {
+        await addDomainToGroup(group.path, btn, group.name);
+      });
+
+      quickActions.appendChild(btn);
+    });
+  }
 
   // 添加域名到规则文件
-  async function addDomain(type) {
+  async function addDomainToGroup(filePath, button, groupName) {
     if (!currentDomain) {
       showToast('无效的域名', 'error');
       return;
     }
 
-    // 获取配置
-    const settings = await chrome.storage.sync.get([
-      'token',
-      'owner',
-      'repo',
-      'branch',
-      'directFile',
-      'proxyFile'
-    ]);
+    const settings = await chrome.storage.sync.get(['token', 'owner', 'repo', 'branch']);
 
     if (!settings.token || !settings.owner || !settings.repo) {
       showToast('请先配置 GitHub 设置', 'error');
       return;
     }
 
-    const filePath = type === 'direct' ?
-      (settings.directFile || 'direct.txt') :
-      (settings.proxyFile || 'proxy.txt');
-
-    const button = type === 'direct' ? addDirectBtn : addProxyBtn;
     const originalText = button.innerHTML;
 
     try {
@@ -129,8 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await api.addDomainToFile(filePath, currentDomain);
 
       // 显示成功消息
-      const typeText = type === 'direct' ? '直连规则' : '代理规则';
-      showToast(`已添加到${typeText}`, 'success');
+      showToast(`已添加到 ${groupName}`, 'success');
 
     } catch (error) {
       console.error('添加失败:', error);
@@ -156,6 +176,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       button.innerHTML = originalText;
     }
   }
+  // 打开设置页面
+  settingsLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.runtime.openOptionsPage();
+  });
 
   // 显示 Toast 提示
   function showToast(message, type) {
