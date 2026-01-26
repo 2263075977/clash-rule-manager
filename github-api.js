@@ -75,6 +75,45 @@ class GitHubAPI {
     return await response.json();
   }
 
+  // 检测域名是否已存在于文件中
+  async checkDomainExists(filePath, domain) {
+    try {
+      const { content } = await this.getFileContent(filePath);
+      const rule = `DOMAIN-SUFFIX,${domain}`;
+      return content.includes(rule);
+    } catch (error) {
+      console.error(`检测 ${filePath} 失败:`, error);
+      return false;
+    }
+  }
+
+  // 从规则文件中删除域名
+  async removeDomainFromFile(filePath, domain) {
+    try {
+      const { content, sha } = await this.getFileContent(filePath);
+      const rule = `DOMAIN-SUFFIX,${domain}`;
+
+      // 检查规则是否存在
+      if (!content.includes(rule)) {
+        throw new Error('该域名不存在于规则文件中');
+      }
+
+      // 删除规则（处理行尾换行）
+      const lines = content.split('\n');
+      const newLines = lines.filter(line => line.trim() !== rule);
+      const newContent = newLines.join('\n');
+
+      // 更新文件
+      const commitMessage = `Remove ${domain} from ${filePath}`;
+      await this.updateFile(filePath, newContent, sha, commitMessage);
+
+      return true;
+    } catch (error) {
+      console.error('删除域名失败:', error);
+      throw error;
+    }
+  }
+
   // 添加域名到规则文件
   async addDomainToFile(filePath, domain) {
     try {
