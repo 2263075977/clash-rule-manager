@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 检查已配置并渲染按钮
-  const settings = await chrome.storage.sync.get(['token', 'owner', 'repo', 'ruleGroups', 'directFile', 'proxyFile']);
+  const settings = await chrome.storage.sync.get(['token', 'owner', 'repo', 'branch', 'ruleGroups', 'directFile', 'proxyFile']);
 
   if (!settings.token || !settings.owner || !settings.repo) {
     showToast('请先配置 GitHub 设置', 'error');
@@ -70,6 +70,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.textContent = '请先去设置页面配置';
     btn.disabled = true;
     quickActions.appendChild(btn);
+    document.getElementById('domainStatus').textContent = '请先配置';
+    document.getElementById('domainStatus').className = 'domain-status';
   } else {
     // 处理规则分组逻辑（与 options.js 保持一致）
     let groups = settings.ruleGroups;
@@ -86,35 +88,169 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    // 渲染按钮
-    renderActionButtons(groups);
+    // 创建 API 实例并检测状态
+    const api = new GitHubAPI(
+      settings.token,
+      settings.owner,
+      settings.repo,
+      settings.branch || 'main'
+    );
+
+    const statusResults = await checkDomainStatus(groups, currentDomain, api);
+
+    // 渲染按钮（带状态）
+    renderActionButtons(groups, statusResults);
   }
 
-  function renderActionButtons(groups) {
+  // 检测域名在所有规则文件中的状态
+  async function checkDomainStatus(groups, domain, api) {
+    const statusElement = document.getElementById('domainStatus');
+
+    if (!domain) {
+      statusElement.textContent = '无效域名';
+      statusElement.className = 'domain-status';
+      return [];
+    }
+
+    statusElement.textContent = '🔍 检测中...';
+    statusElement.className = 'domain-status';
+
+    try {
+      // 并行检测所有规则文件（最多等待 8 秒）
+      const checkPromises = groups.map(async (group) => {
+        const exists = await api.checkDomainExists(group.path, domain);
+        return { groupName: group.name, path: group.path, exists };
+      });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('检测超时')), 8000)
+      );
+
+      const results = await Promise.race([
+        Promise.all(checkPromises),
+        timeoutPromise
+      ]);
+
+      // 更新状态显示
+      const existsIn = results.filter(r => r.exists).map(r => r.groupName);
+      if (existsIn.length > 0) {
+        statusElement.textContent = `✅ 已在 ${existsIn.join('、')} 中`;
+        statusElement.className = 'domain-status status-exists';
+      } else {
+        statusElement.textContent = '📌 未添加到任何规则';
+        statusElement.className = 'domain-status status-none';
+      }
+
+      return results;
+    } catch (error) {
+      console.error('检测状态失败:', error);
+      statusElement.textContent = '⚠️ 检测失败';
+      statusElement.className = 'domain-status';
+      return [];
+    }
+  }
+
+  function renderActionButtons(groups, statusResults = []) {
     quickActions.innerHTML = '';
     groups.forEach(group => {
       const btn = document.createElement('button');
-      // 默认颜色逻辑：为了保持一定的视觉习惯，如果名字包含"直连"或 type 为 direct 用 direct 样式，否则用 proxy 样式或默认
-      // 这里简单起见，交替颜色或者统一颜色。这里为了区分，我们可以根据关键字
-      let btnClass = 'btn btn-proxy'; // 默认蓝色
+
+      // 检查该规则是否已添加
+      const statusResult = statusResults.find(r => r.path === group.path);
+      const isAdded = statusResult ? statusResult.exists : false;
+
+      // 设置按钮样式
+      let btnClass = 'btn btn-proxy';
       if (group.name.includes('直连') || group.type === 'direct') {
-        btnClass = 'btn btn-direct'; // 绿色
+        btnClass = 'btn btn-direct';
       } else if (group.name.includes('代理') || group.type === 'proxy') {
         btnClass = 'btn btn-proxy';
       }
 
-      btn.className = btnClass;
-      btn.innerHTML = `➕ 添加到 ${group.name}`;
-      btn.style.marginTop = '0'; // reset because of flex gap
+      btn.style.marginTop = '0';
 
-      if (!currentDomain) btn.disabled = true;
-
-      btn.addEventListener('click', async () => {
-        await addDomainToGroup(group.path, btn, group.name);
-      });
+      // 已添加的按钮显示删除操作
+      if (isAdded) {
+        btn.className = 'btn btn-remove';
+        btn.innerHTML = `🗑️ 从 ${group.name} 删除`;
+        btn.disabled = false;
+        btn.addEventListener('click', async () => {
+          await removeDomainFromGroup(group.path, btn, group.name);
+        });
+      } else {
+        btn.className = btnClass;
+        btn.innerHTML = `➕ 添加到 ${group.name}`;
+        btn.disabled = !currentDomain;
+        btn.addEventListener('click', async () => {
+          await addDomainToGroup(group.path, btn, group.name);
+        });
+      }
 
       quickActions.appendChild(btn);
     });
+  }
+
+  // 从规则文件删除域名
+  async function removeDomainFromGroup(filePath, button, groupName) {
+    if (!currentDomain) {
+      showToast('无效的域名', 'error');
+      return;
+    }
+
+    // 二次确认
+    if (!confirm(`确定要从 ${groupName} 中删除 ${currentDomain} 吗？`)) {
+      return;
+    }
+
+    const settings = await chrome.storage.sync.get(['token', 'owner', 'repo', 'branch']);
+
+    if (!settings.token || !settings.owner || !settings.repo) {
+      showToast('请先配置 GitHub 设置', 'error');
+      return;
+    }
+
+    const originalText = button.innerHTML;
+
+    try {
+      button.disabled = true;
+      button.innerHTML = '<span class="loading"></span>删除中...';
+
+      const api = new GitHubAPI(
+        settings.token,
+        settings.owner,
+        settings.repo,
+        settings.branch || 'main'
+      );
+
+      await api.removeDomainFromFile(filePath, currentDomain);
+
+      showToast(`已从 ${groupName} 删除`, 'success');
+
+      // 刷新状态
+      setTimeout(() => {
+        location.reload();
+      }, 1000);
+
+    } catch (error) {
+      console.error('删除失败:', error);
+
+      let errorMessage = '删除失败';
+      if (error.message.includes('不存在')) {
+        errorMessage = '该域名不存在';
+      } else if (error.message.includes('404')) {
+        errorMessage = '文件不存在';
+      } else if (error.message.includes('401')) {
+        errorMessage = 'Token 无效';
+      } else if (error.message.includes('403')) {
+        errorMessage = '权限不足';
+      } else {
+        errorMessage = error.message;
+      }
+
+      showToast(errorMessage, 'error');
+      button.disabled = false;
+      button.innerHTML = originalText;
+    }
   }
 
   // 添加域名到规则文件
@@ -152,6 +288,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 显示成功消息
       showToast(`已添加到 ${groupName}`, 'success');
 
+      // 刷新状态（不恢复按钮状态，因为页面会刷新）
+      setTimeout(() => {
+        location.reload();
+      }, 1000);
+
     } catch (error) {
       console.error('添加失败:', error);
 
@@ -170,8 +311,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       showToast(errorMessage, 'error');
-    } finally {
-      // 恢复按钮状态
+
+      // 仅在错误时恢复按钮状态
       button.disabled = false;
       button.innerHTML = originalText;
     }

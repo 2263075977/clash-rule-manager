@@ -11,12 +11,15 @@ class GitHubAPI {
 
   // 获取文件内容
   async getFileContent(filePath) {
-    const url = `${this.baseUrl}/repos/${this.owner}/${this.repo}/contents/${filePath}?ref=${this.branch}`;
+    // 添加时间戳参数绕过缓存
+    const timestamp = Date.now();
+    const url = `${this.baseUrl}/repos/${this.owner}/${this.repo}/contents/${filePath}?ref=${this.branch}&_=${timestamp}`;
 
     const response = await fetch(url, {
       headers: {
         'Authorization': `token ${this.token}`,
-        'Accept': 'application/vnd.github.v3+json'
+        'Accept': 'application/vnd.github.v3+json',
+        'Cache-Control': 'no-cache'
       }
     });
 
@@ -30,8 +33,8 @@ class GitHubAPI {
 
     const data = await response.json();
 
-    // 解码 Base64 内容
-    const content = atob(data.content);
+    // 解码 Base64 内容（移除换行符）
+    const content = atob(data.content.replace(/\n/g, ''));
 
     return {
       content,
@@ -73,6 +76,53 @@ class GitHubAPI {
     }
 
     return await response.json();
+  }
+
+  // 检测域名是否已存在于文件中
+  async checkDomainExists(filePath, domain) {
+    try {
+      const { content } = await this.getFileContent(filePath);
+      const rule = `DOMAIN-SUFFIX,${domain}`;
+      return content.includes(rule);
+    } catch (error) {
+      console.error(`检测 ${filePath} 失败:`, error);
+      return false;
+    }
+  }
+
+  // 从规则文件中删除域名
+  async removeDomainFromFile(filePath, domain) {
+    try {
+      const { content, sha } = await this.getFileContent(filePath);
+      const rule = `DOMAIN-SUFFIX,${domain}`;
+
+      // 检查规则是否存在
+      if (!content.includes(rule)) {
+        throw new Error('该域名不存在于规则文件中');
+      }
+
+      // 删除规则（处理行尾换行和空行）
+      const lines = content.split('\n');
+      const newLines = lines.filter(line => {
+        const trimmed = line.trim();
+        return trimmed !== rule && trimmed !== '';
+      });
+      let newContent = newLines.join('\n');
+
+      // 确保文件末尾有换行符
+      if (newContent && !newContent.endsWith('\n')) {
+        newContent += '\n';
+      }
+
+      // 更新文件
+      const commitMessage = `Remove ${domain} from ${filePath}`;
+      await this.updateFile(filePath, newContent, sha, commitMessage);
+
+      return true;
+    } catch (error) {
+      console.error('删除域名失败:', error);
+      throw error;
+    }
   }
 
   // 添加域名到规则文件
