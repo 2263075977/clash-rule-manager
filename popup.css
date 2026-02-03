@@ -79,18 +79,12 @@ body {
   transform: none;
 }
 
-.btn-direct {
-  background: #28a745;
-}
-
-.btn-direct:hover {
-  background: #218838;
-}
-
+.btn-direct,
 .btn-proxy {
   background: #007bff;
 }
 
+.btn-direct:hover,
 .btn-proxy:hover {
   background: #0056b3;
 }

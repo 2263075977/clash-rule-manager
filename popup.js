@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 检查已配置并渲染按钮
-  const settings = await chrome.storage.sync.get(['token', 'owner', 'repo', 'branch', 'ruleGroups', 'directFile', 'proxyFile']);
+  const settings = await chrome.storage.sync.get(['token', 'owner', 'repo', 'branch', 'ruleGroups', 'directFile', 'proxyFile', 'clashApiUrl', 'clashApiSecret']);
 
   if (!settings.token || !settings.owner || !settings.repo) {
     showToast('请先配置 GitHub 设置', 'error');
@@ -175,14 +175,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.innerHTML = `🗑️ 从 ${group.name} 删除`;
         btn.disabled = false;
         btn.addEventListener('click', async () => {
-          await removeDomainFromGroup(group.path, btn, group.name);
+          await removeDomainFromGroup(group.path, btn, group.name, group.provider);
         });
       } else {
         btn.className = btnClass;
         btn.innerHTML = `➕ 添加到 ${group.name}`;
         btn.disabled = !currentDomain;
         btn.addEventListener('click', async () => {
-          await addDomainToGroup(group.path, btn, group.name);
+          await addDomainToGroup(group.path, btn, group.name, group.provider);
         });
       }
 
@@ -191,7 +191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 从规则文件删除域名
-  async function removeDomainFromGroup(filePath, button, groupName) {
+  async function removeDomainFromGroup(filePath, button, groupName, providerName) {
     if (!currentDomain) {
       showToast('无效的域名', 'error');
       return;
@@ -224,7 +224,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       await api.removeDomainFromFile(filePath, currentDomain);
 
-      showToast(`已从 ${groupName} 删除`, 'success');
+      // 尝试调用 Clash API 更新规则提供者
+      const clashResult = await tryReloadClash(providerName);
+
+      // 显示成功消息
+      let message = `已从 ${groupName} 删除`;
+      if (clashResult.success) {
+        message += `，${clashResult.message}`;
+      }
+      showToast(message, 'success');
 
       // 刷新状态
       setTimeout(() => {
@@ -254,7 +262,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 添加域名到规则文件
-  async function addDomainToGroup(filePath, button, groupName) {
+  async function addDomainToGroup(filePath, button, groupName, providerName) {
     if (!currentDomain) {
       showToast('无效的域名', 'error');
       return;
@@ -285,8 +293,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 添加域名
       await api.addDomainToFile(filePath, currentDomain);
 
+      // 尝试调用 Clash API 更新规则提供者
+      const clashResult = await tryReloadClash(providerName);
+
       // 显示成功消息
-      showToast(`已添加到 ${groupName}`, 'success');
+      let message = `已添加到 ${groupName}`;
+      if (clashResult.success) {
+        message += `，${clashResult.message}`;
+      }
+      showToast(message, 'success');
 
       // 刷新状态（不恢复按钮状态，因为页面会刷新）
       setTimeout(() => {
@@ -317,6 +332,32 @@ document.addEventListener('DOMContentLoaded', async () => {
       button.innerHTML = originalText;
     }
   }
+  // 尝试调用 Clash API 更新规则提供者
+  async function tryReloadClash(providerName) {
+    try {
+      // 如果没有指定 provider 名称，直接返回
+      if (!providerName) {
+        return { success: false, message: '' };
+      }
+
+      const settings = await chrome.storage.sync.get(['clashApiUrl', 'clashApiSecret']);
+
+      // 如果未配置 Clash API，直接返回
+      if (!settings.clashApiUrl) {
+        return { success: false, message: '' };
+      }
+
+      const clashApi = new ClashAPI(settings.clashApiUrl, settings.clashApiSecret || '');
+      await clashApi.updateRuleProvider(providerName);
+      console.log(`规则提供者 ${providerName} 已更新`);
+      return { success: true, message: 'Clash 规则已更新' };
+    } catch (error) {
+      // 静默失败，不影响主流程
+      console.warn('Clash API 调用失败（不影响域名添加）:', error);
+      return { success: false, message: 'Clash 更新失败' };
+    }
+  }
+
   // 打开设置页面
   settingsLink.addEventListener('click', (e) => {
     e.preventDefault();

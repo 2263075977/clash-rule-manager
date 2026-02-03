@@ -3,6 +3,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('settingsForm');
   const testBtn = document.getElementById('testBtn');
+  const testClashBtn = document.getElementById('testClashBtn');
   const message = document.getElementById('message');
   const addRuleGroupBtn = document.getElementById('addRuleGroupBtn');
 
@@ -29,6 +30,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // 测试连接
   testBtn.addEventListener('click', async () => {
     await testConnection();
+  });
+
+  // 测试 Clash 连接
+  testClashBtn.addEventListener('click', async () => {
+    await testClashConnection();
   });
 
   // 备份与恢复
@@ -59,13 +65,17 @@ async function loadSettings() {
       'branch',
       'ruleGroups', // New standard
       'directFile', // Legacy
-      'proxyFile'   // Legacy
+      'proxyFile',   // Legacy
+      'clashApiUrl',
+      'clashApiSecret'
     ]);
 
     if (settings.token) document.getElementById('token').value = settings.token;
     if (settings.owner) document.getElementById('owner').value = settings.owner;
     if (settings.repo) document.getElementById('repo').value = settings.repo;
     if (settings.branch) document.getElementById('branch').value = settings.branch;
+    if (settings.clashApiUrl) document.getElementById('clashApiUrl').value = settings.clashApiUrl;
+    if (settings.clashApiSecret) document.getElementById('clashApiSecret').value = settings.clashApiSecret;
 
     // 处理规则分组：优先使用 ruleGroups，如果没有则尝试从旧配置迁移 or 使用默认值
     let groups = settings.ruleGroups;
@@ -96,18 +106,19 @@ function renderRuleGroups(groups) {
   const container = document.getElementById('ruleGroupsList');
   container.innerHTML = '';
   groups.forEach(group => {
-    addRuleGroupItem(group.name, group.path);
+    addRuleGroupItem(group.name, group.path, group.provider || '');
   });
 }
 
 // 添加规则分组输入项
-function addRuleGroupItem(name = '', path = '') {
+function addRuleGroupItem(name = '', path = '', provider = '') {
   const container = document.getElementById('ruleGroupsList');
   const div = document.createElement('div');
   div.className = 'rule-group-item form-group';
   div.innerHTML = `
     <input type="text" placeholder="显示名称 (如: 办公网络)" class="group-name" value="${name}" required>
     <input type="text" placeholder="规则文件路径 (如: office.txt)" class="group-path" value="${path}" required>
+    <input type="text" placeholder="Clash Provider 名称 (可选)" class="group-provider" value="${provider}">
     <button type="button" class="btn btn-remove">删除</button>
   `;
 
@@ -124,6 +135,8 @@ async function saveSettings() {
   const owner = document.getElementById('owner').value.trim();
   const repo = document.getElementById('repo').value.trim();
   const branch = document.getElementById('branch').value.trim() || 'main';
+  const clashApiUrl = document.getElementById('clashApiUrl').value.trim();
+  const clashApiSecret = document.getElementById('clashApiSecret').value.trim();
 
   // 获取规则分组配置
   const ruleGroups = [];
@@ -132,8 +145,13 @@ async function saveSettings() {
   groupItems.forEach(item => {
     const name = item.querySelector('.group-name').value.trim();
     const path = item.querySelector('.group-path').value.trim();
+    const provider = item.querySelector('.group-provider').value.trim();
     if (name && path) {
-      ruleGroups.push({ name, path });
+      const group = { name, path };
+      if (provider) {
+        group.provider = provider;
+      }
+      ruleGroups.push(group);
     }
   });
 
@@ -154,7 +172,9 @@ async function saveSettings() {
       owner,
       repo,
       branch,
-      ruleGroups
+      ruleGroups,
+      clashApiUrl,
+      clashApiSecret
       // 不再单独保存 directFile 和 proxyFile
     });
 
@@ -246,6 +266,46 @@ function importSettings(file) {
     document.getElementById('importFile').value = '';
   };
   reader.readAsText(file);
+}
+
+// 测试 Clash 连接
+async function testClashConnection() {
+  const clashApiUrl = document.getElementById('clashApiUrl').value.trim();
+  const clashApiSecret = document.getElementById('clashApiSecret').value.trim();
+
+  if (!clashApiUrl) {
+    showMessage('请先填写 Clash API 地址', 'error');
+    return;
+  }
+
+  testClashBtn.disabled = true;
+  testClashBtn.innerHTML = '<span class="loading"></span>测试中...';
+
+  try {
+    const headers = {};
+    if (clashApiSecret) {
+      headers['Authorization'] = `Bearer ${clashApiSecret}`;
+    }
+
+    const response = await fetch(`${clashApiUrl}/version`, {
+      headers
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      showMessage(`连接成功！Clash 版本: ${data.version || 'unknown'}`, 'success');
+    } else if (response.status === 401) {
+      showMessage('密钥无效或未授权', 'error');
+    } else {
+      showMessage(`连接失败: ${response.status} ${response.statusText}`, 'error');
+    }
+  } catch (error) {
+    console.error('测试 Clash 连接失败:', error);
+    showMessage('网络错误: 无法连接到 Clash API', 'error');
+  } finally {
+    testClashBtn.disabled = false;
+    testClashBtn.textContent = '测试 Clash 连接';
+  }
 }
 
 // 显示消息
