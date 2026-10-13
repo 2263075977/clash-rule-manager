@@ -1,0 +1,24 @@
+# === OS / Editor ===
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
+.vscode/
+
+# === Logs / temp ===
+*.log
+*.tmp
+*.bak
+
+# === Secrets / local config ===
+.env
+.env.*
+secrets.json
+*.pem
+
+# === Python (trellis scripts) ===
+__pycache__/
+*.py[cod]
+.venv/
+venv/
