@@ -51,6 +51,49 @@ For each boundary:
 
 ---
 
+## 本项目的层边界
+
+本项目虽小,但**层边界依然存在且已出现过 bug**。
+
+```
+用户操作
+  ↓
+DOM 事件(popup.js / options.js)
+  ↓
+服务层(GitHubAPI / ClashAPI · 返回结果或抛 error)
+  ↓
+外部世界(GitHub REST API / Clash 控制器)
+  ↓
+chrome.storage.sync(配置·唯一真源) ← 跨界面传递的唯一通道
+```
+
+### 边界清单
+
+| 边界 | 契约 | 已踩过的坑 |
+|------|------|------------|
+| UI → GitHubAPI | 失败时 `error.status`(number)+ 中文 `message` | 早期在 `checkDomainExists` 里尽掉错误,导致 401 被显示为"未添加" |
+| GitHubAPI → GitHub API | 读文件 404 **不报错**返回 `{content:'', sha:null}` | 把 404 当错误导致首次添加失败 |
+| GitHubAPI → 文件内容 | Base64 必须经 `TextEncoder`/`TextDecoder` | 用 `btoa` 直处理中文会抛 `InvalidCharacterError` |
+| UI → ClashAPI | 失败**静默降级**,返回 `{success, message}` | 当致命错误处理 → 未配 Clash 的用户每次都看到报错 |
+| options → storage | 键集合见 `../backend/database-guidelines.md` | 遗留键 `directFile`/`proxyFile` 未处理 → 老用户分组丢失 |
+| **options ↔ popup** | **只能**通过 `chrome.storage.sync` | 假设全局变量共享(不成立,不同文档) |
+| HTML → JS | `id` 与动态 `class` 是接口 | 改 class 导致保存时字段静默丢失 |
+
+### 提问清单(改跨层逻辑前逐项确认)
+
+- [ ] 这个数据经过了哪几层?每层的**格式**是什么?
+- [ ] 失败时抛错还是返回哨兵值?调用方知道吗?
+- [ ] `error.status` 是否保留到了 UI 层?
+- [ ] storage 新增/改名的键,`loadSettings` 与 `popup.js` 是否**都**改了?
+- [ ] 这个值需要跨 popup / options 吗?→ 是则必须走 storage
+- [ ] 前端拿到的数据结构变了吗?所有消费点(包括两处重复的迁移逻辑)都改了吗?
+- [ ] 新脚本引用加到了哪个 HTML?另一个需要吗?
+
+> **Warning**: 本项目最常见的跨层 bug 是**“只改了一侧”** —— 改了 `options.js` 的 storage 键但没改 `popup.js` 的读取,或改了 `Group` 结构但漏了 `popup.js` 的渲染。
+> 根因是**同一契约存在多个消费点却没有类型检查**。详见 [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) 的重复实例。
+
+---
+
 ## Common Cross-Layer Mistakes
 
 ### Mistake 1: Implicit Format Assumptions

@@ -38,6 +38,70 @@ grep -r "keyword" .
 
 ---
 
+## 本项目已存在的重复实例(务必先读)
+
+> 以下是**已经发生的**重复,新增代码前对照检查。修其中一个必须同时修另一个。
+
+### 实例 1: 分组配置归一化 —— 两份
+
+同一段"`ruleGroups` → 遗留键迁移 → 默认值"逻辑,在 `popup.js` 与 `options.js` 各写一份。
+
+```js
+// 两份几乎逐行相同
+let groups = settings.ruleGroups;
+if (!groups || groups.length === 0) {
+  if (settings.directFile || settings.proxyFile) { /* 合成两分组 */ }
+  else { groups = JSON.parse(JSON.stringify(defaultRuleGroups)); }
+}
+```
+
+**风险**: 改迁移规则时只改一处 → popup 与 options 显示不同分组。
+**注意**: 两处的 `groups` 用途不同(options 渲染表单、popup 渲染按钮),并非完全可提取 —— 但**归一化**部分应当提取。
+
+### 实例 2: 按钮渲染 —— 两份
+
+| 函数 | 时机 |
+|------|------|
+| `renderActionButtons()` | popup 打开时批量渲染 |
+| `updateButtonState()` | 单次添加/删除后更新 |
+
+两者的 class 判定、文案、`addEventListener` 绑定逻辑高度相似。
+
+**风险**: 只改一处 → 初始态与更新后态表现不一致(典型:忘了同步 `dataset.originalText` 处理)。
+
+### 实例 3: 超时时长 —— 常量与硬编码混用
+
+```js
+// popup.js —— 正确,用共享常量
+setTimeout(() => { toast.classList.remove('show'); }, TOAST_DURATION);   // 2000ms
+
+// options.js —— 硬编码,且取值不同
+setTimeout(() => { message.classList.remove('show'); }, 3000);          // 3000ms
+```
+
+**风险**: 想统一调整提示时长时漏改一处,两界面不一致。
+
+### 实例 4: HTTP 请求 —— 封装与内联混用
+
+```js
+// popup.js —— 复用封装
+await api.addDomainToFile(filePath, currentDomain);
+
+// options.js —— 内联 fetch(因 options.html 未加载 github-api.js)
+const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { ... });
+```
+
+**原因**: `options.html:87-88` 只加载 `shared.js` 与 `options.js`。
+**风险**: 内联版本没有 `error.status`、没有 409 重试、没有 `_locks`。添加同类调用时**优先补 `<script>` 并复用类**,而非再内联一份。
+
+### 实例 5: 错误分类 —— 两份相似映射
+
+`popup.js` 的 `addDomainToGroup` / `removeDomainFromGroup` 各自实现了一遍 message → 中文文案映射。
+
+**风险**: 新增错误类型时只加一处。
+
+---
+
 ## Common Duplication Patterns
 
 ### Pattern 1: Copy-Paste Functions

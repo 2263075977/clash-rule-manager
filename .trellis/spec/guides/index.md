@@ -51,6 +51,30 @@ These guides help you **ask the right questions before coding**.
 
 → Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
 
+### When to Think About Cross-Layer Issues (本项目专属)
+
+- [ ] 改动 `chrome.storage.sync` 的**任意键** → 必须同步更新 `options.js` 的 load/save **和** `popup.js` 的读取
+- [ ] 改动 `Group` 对象结构 → 必须检查三处消费点: `options.js`(读表单)、`popup.js`(渲染按钮)、迁移逻辑(两处重复)
+- [ ] 改动 `manifest.json` 的 `host_permissions` 或 `content_security_policy` → Clash API 依赖 CSP 的 `connect-src http:`
+- [ ] 新增 `<script>` 引用 → 确认该 HTML **是否**加载了所需模块(`options.html` 不加载服务类!)
+- [ ] 改动 HTML 的 `id` 或动态元素的 `class` → 会静默破坏 `getElementById` / `querySelector`
+- [ ] 服务层新增抛错路径 → 必须挂 `error.status`,否则 UI 层只能字符串匹配
+- [ ] 新增共享常量 → 加到 `shared.js`,不要在各自文件硬编码
+
+→ Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)
+
+### When to Think About Code Reuse (本项目专属)
+
+- [ ] 要写"解析分组配置"逻辑 → **已存在两份**(`popup.js` / `options.js`),不要写第三份
+- [ ] 要写"渲染分组按钮"逻辑 → **已存在两份**(`renderActionButtons` / `updateButtonState`)
+- [ ] 要用 `setTimeout` 做提示 → 用 `TOAST_DURATION`,不要写 `2000` / `3000`
+- [ ] 要限制并发数 → 用 `MAX_CONCURRENT_CHECKS`,不要写 `4`
+- [ ] 要发 HTTP 请求 → 先看 `GitHubAPI` / `ClashAPI` 是否已封装该调用
+- [ ] 要写 Base64 编解码 → **必须**用 `github-api.js` 的 `base64Encode`/`base64Decode`(UTF-8 安全)
+- [ ] 要区分直连/代理样式 → 见 `getButtonClass`,注意其依赖中文名匹配的局限
+
+→ Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
+
 ### When Verifying AI Cross-Review Results
 
 - [ ] Reviewer claims "user input can be malicious" → Check the actual data source (internal manifest? user config? external API?)
