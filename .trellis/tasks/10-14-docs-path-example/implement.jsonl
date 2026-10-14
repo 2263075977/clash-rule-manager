@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Group 对象契约与「GitHub 规则文件」契约表就在此文件,是本次要改的 Group.path 路径说明的权威出处;改前必须读,改后必须与之自洽"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "「404 不是错误」契约的权威出处:读取不存在的文件返回空内容不抛错。本次 FAQ 排错项要引用的正是这条,措辞必须与之一致"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "「规则文件路径与格式」表在此,含 domainStatusMap 以 Group.path 为键的说明;需与 backend 的路径口径同步"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "options 验证清单第 1 项含默认路径期望,本次要注明其为默认值;改文档需与验证清单自洽"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "含「禁止硬编码仓库坐标」等约束,是决定「默认值不得写死 mihomo/ 前缀」的依据"}

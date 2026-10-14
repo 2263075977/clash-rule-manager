@@ -37,7 +37,7 @@
 /**
  * @typedef {Object} Group
  * @property {string}  name       — 显示名(必填)
- * @property {string}  path       — 仓库内相对路径(必填)
+ * @property {string}  path       — 仓库根相对路径(必填),子目录需带前缀
  * @property {string} [provider]  — Clash provider 名(可选)
  * @property {'direct'|'proxy'} [type] — 仅迁移遗留,新数据不含
  */

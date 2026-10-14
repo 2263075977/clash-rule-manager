@@ -96,10 +96,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 | 项目 | 约定 |
 |------|------|
-| 默认路径 | `shared.js` 的 `defaultRuleGroups` = `direct.yaml` / `proxy.yaml` |
+| 默认路径 | `shared.js` 的 `defaultRuleGroups` = `direct.yaml` / `proxy.yaml`(仓库根相对) |
 | 文件内容 | yaml `payload` 数组;规则行为 `  - '+.<domain>'` |
+| 子目录文件 | `path` 可含目录前缀(如 `mihomo/direct.yaml`)。漏写前缀会落到 404 → 静默当空文件 → 误报"未添加" |
 | 存在性检测 | `GitHubAPI.checkDomainExists` → `isDomainCovered`,按解析后语义判重(兼容 `+.` / 裸值 / `DOMAIN,` / `DOMAIN-SUFFIX,`)|
-| 状态键 | `domainStatusMap` 仍以 `Group.path`(如 `direct.yaml`)为键,与文件格式无关 |
+| 状态键 | `domainStatusMap` 仍以 `Group.path`(如 `direct.yaml`、`mihomo/direct.yaml`)为键,与文件格式无关 |
 
 > **UI 层不解析规则内容**。`popup.js` 只把 `group.path` 与 `currentDomain` 透传给 `GitHubAPI`,
 > 内容格式的完整契约见 `../backend/database-guidelines.md` 的"GitHub 规则文件"。

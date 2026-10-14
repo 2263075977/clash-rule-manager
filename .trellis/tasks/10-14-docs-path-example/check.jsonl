@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验 README/spec 的路径说明是否与该契约表一致,以及是否误改了 Group 契约本身"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 FAQ 关于「404 静默视为空文件」的表述是否忠实于该契约,不夸大不缩小"}

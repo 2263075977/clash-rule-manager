@@ -38,7 +38,7 @@
 ```js
 {
   name: string,      // 必填,显示名(如 '直连规则')
-  path: string,      // 必填,仓库内相对路径(如 'direct.yaml')
+  path: string,      // 必填,仓库根相对路径(如 'direct.yaml'、'mihomo/direct.yaml')
   provider?: string  // 可选,Clash provider 名,用于写后重载
 }
 ```
@@ -99,7 +99,7 @@ if (!groups || groups.length === 0) {
 
 | 项目 | 约定 |
 |------|------|
-| 路径 | `Group.path` 相对路径,如 `direct.yaml` |
+| 路径 | `Group.path` 是**仓库根相对路径**,原样拼进 `contents/${path}`;**子目录文件必须带目录前缀**(如 `mihomo/direct.yaml`)。它同时决定写入位置与判重读取位置;若该分组填了 Clash provider 名,应确保其在 Clash 配置里指向的就是这一份文件 |
 | 格式 | mihomo `rule-providers` 的 `behavior: domain` + `format: yaml`;规则行为 yaml 数组项 `  - '+.<domain>'` |
 | 写入位置 | **最后一个规则行之后**(沿用它推断缩进),而非文件 EOF;理由:分组注释为块前置,EOF 追加会归入错误的注释块 |
 | 缩进 | 按文件已存在的规则行缩进推断,无规则行时退化 2 空格 |
@@ -164,7 +164,7 @@ const hit = rule
 | 类型 | 规则 | 示例 |
 |------|------|------|
 | storage 键 | camelCase | `clashApiUrl`、`ruleGroups` |
-| 文件路径 | 小写 + `.yaml` | `direct.yaml`、`office.yaml` |
+| 文件路径 | 小写 + `.yaml`;仓库根相对路径 | `direct.yaml`、`office.yaml`、`mihomo/direct.yaml` |
 | 分组显示名 | 中文 + "规则"后缀(约定,非强制) | `直连规则` |
 
 ---
@@ -192,3 +192,14 @@ const settings = await chrome.storage.sync.get(null);  // 拿到全部键,含 to
 **Cause**: 新用户尚未保存过配置,`ruleGroups` 为 `undefined`
 
 **Fix**: 始终走三档优先级解析(见上文迁移逻辑)
+
+### 常见错误: 规则文件路径漏写子目录前缀
+
+**Symptom**: 域名明明在规则文件里,popup 却显示"未添加到任何规则";Token、仓库、分支都正确
+
+**Cause**: `Group.path` 是**仓库根**相对路径。文件实际在子目录(如 `mihomo/direct.yaml`)而路径只填了 `direct.yaml`,则请求落到 `contents/direct.yaml` → 404。而 404 按既有契约被**静默视为空文件**(见 `error-handling.md` 的"404 不是错误"),于是空内容里查不到域名 —— **不报错,但结果错误**。
+
+**Fix**: 路径带上完整子目录前缀。
+
+**Prevention**: 任何"文件看起来存在但检测为不存在"的现象,先核 `Group.path` 与实际仓库目录是否一致。
+注意 **`defaultRuleGroups` 不写死 `mihomo/`**: 默认值必须仓库无关(见 `quality-guidelines.md` 的"禁止硬编码仓库坐标"),前缀由用户在设置页填。
