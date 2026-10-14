@@ -20,6 +20,130 @@ function base64Encode(str) {
   return btoa(binaryStr);
 }
 
+// 域名归一化:小写 + 去除尾随点
+function normalizeDomain(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim().toLowerCase().replace(/\.+$/, '');
+}
+
+// 把一行规则归一化为 { kind, value };
+// 无法识别(注释 / 空行 / 非域名规则)返回 null
+function parseRuleLine(rawLine) {
+  if (typeof rawLine !== 'string') return null;
+
+  // 1. 去首尾空白
+  let line = rawLine.trim();
+  if (!line) return null;
+
+  // 2. yaml 数组项前缀 '-'
+  if (line.startsWith('-')) {
+    line = line.slice(1).trim();
+    if (!line) return null;
+  }
+
+  // 3. 从第一个 '#' 处截断行尾注释(域名不含 '#')
+  const hashIndex = line.indexOf('#');
+  if (hashIndex !== -1) {
+    line = line.slice(0, hashIndex).trim();
+    if (!line) return null;
+  }
+
+  // 4. 去掉成对的包裹引号
+  if (line.length >= 2) {
+    const first = line[0];
+    const last = line[line.length - 1];
+    if ((first === "'" || first === '"') && first === last) {
+      line = line.slice(1, -1).trim();
+      if (!line) return null;
+    }
+  }
+
+  // 5. 前缀判定
+  const upper = line.toUpperCase();
+  if (upper.startsWith('DOMAIN-KEYWORD,')) {
+    const value = normalizeDomain(line.slice('DOMAIN-KEYWORD,'.length));
+    return value ? { kind: 'keyword', value } : null;
+  }
+  if (upper.startsWith('DOMAIN-SUFFIX,')) {
+    const value = normalizeDomain(line.slice('DOMAIN-SUFFIX,'.length));
+    return value ? { kind: 'suffix', value } : null;
+  }
+  if (upper.startsWith('DOMAIN,')) {
+    const value = normalizeDomain(line.slice('DOMAIN,'.length));
+    return value ? { kind: 'exact', value } : null;
+  }
+  if (line.startsWith('+.')) {
+    const value = normalizeDomain(line.slice(2));
+    return value ? { kind: 'suffix', value } : null;
+  }
+  if (line.startsWith('*.')) {
+    const value = normalizeDomain(line.slice(2));
+    return value ? { kind: 'wildcard', value } : null;
+  }
+  if (line.startsWith('.')) {
+    const value = normalizeDomain(line.slice(1));
+    return value ? { kind: 'wildcard', value } : null;
+  }
+
+  // 6. 兜底 hostname 字符集校验(挡掉 payload: / geodata-mode: 等键行)
+  if (!/^[a-z0-9*][a-z0-9\-.*]*$/i.test(line)) return null;
+  const value = normalizeDomain(line);
+  return value ? { kind: 'exact', value } : null;
+}
+
+// 判重:仅 suffix / exact 参与,wildcard 与 keyword 永不判重
+function isDomainCovered(content, domain) {
+  const target = normalizeDomain(domain);
+  if (!target || typeof content !== 'string') return false;
+  for (const line of content.split('\n')) {
+    const rule = parseRuleLine(line);
+    if (!rule) continue;
+    if (rule.kind !== 'suffix' && rule.kind !== 'exact') continue;
+    if (rule.value === target) return true;
+  }
+  return false;
+}
+
+// 追加一条 '+.<domain>' 规则,返回新的完整文件内容
+function appendRule(content, domain) {
+  const value = normalizeDomain(domain);
+  if (!value) return typeof content === 'string' ? content : '';
+  const ruleLine = `- '+.${value}'`;
+  const source = typeof content === 'string' ? content : '';
+  const lines = source.split('\n');
+
+  // 锚点 1:最后一个符合 parseRuleLine 的行(同时推断缩进)
+  let lastRuleIndex = -1;
+  let indent = null;
+  for (let i = 0; i < lines.length; i++) {
+    if (parseRuleLine(lines[i])) {
+      lastRuleIndex = i;
+      indent = (lines[i].match(/^[ \t]*/) || [''])[0];
+    }
+  }
+
+  if (lastRuleIndex !== -1) {
+    lines.splice(lastRuleIndex + 1, 0, (indent !== null ? indent : '  ') + ruleLine);
+    let newContent = lines.join('\n');
+    if (newContent && !newContent.endsWith('\n')) newContent += '\n';
+    return newContent;
+  }
+
+  // 锚点 2:已存在 'payload:' 键但还没有规则行(避免重复键)
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*payload\s*:\s*$/.test(lines[i])) {
+      lines.splice(i + 1, 0, '  ' + ruleLine);
+      let newContent = lines.join('\n');
+      if (newContent && !newContent.endsWith('\n')) newContent += '\n';
+      return newContent;
+    }
+  }
+
+  // 锚点 3:重建(空文件 / 只有注释的文件)
+  const trimmed = source.replace(/\s+$/, '');
+  return (trimmed ? trimmed + '\n' : '') + 'payload:\n  ' + ruleLine + '\n';
+}
+
 class GitHubAPI {
   // Per-file 操作锁，防止并发 PUT 竞态
   static _locks = new Set();
@@ -108,8 +232,7 @@ class GitHubAPI {
     // getFileContent 对 404 返回空内容不会抛出，
     // 其他错误（401/403/网络）直接向上传播，不再吞掉
     const { content } = await this.getFileContent(filePath);
-    const rule = `DOMAIN-SUFFIX,${domain}`;
-    return content.includes(rule);
+    return isDomainCovered(content, domain);
   }
 
   // 从规则文件中删除域名（409 Conflict 时自动重试完整读写流程）
@@ -122,13 +245,25 @@ class GitHubAPI {
 
     const attempt = async () => {
       const { content, sha } = await this.getFileContent(filePath);
-      const rule = `DOMAIN-SUFFIX,${domain}`;
-      if (!content.includes(rule)) {
+      const target = normalizeDomain(domain);
+      const lines = content.split('\n');
+      const kept = [];
+      let removed = 0;
+      for (const rawLine of lines) {
+        const rule = parseRuleLine(rawLine);
+        const hit = rule
+          && (rule.kind === 'suffix' || rule.kind === 'exact')
+          && rule.value === target;
+        if (hit) {
+          removed++;
+          continue;
+        }
+        kept.push(rawLine);
+      }
+      if (removed === 0) {
         throw new Error('该域名不存在于规则文件中');
       }
-      const lines = content.split('\n');
-      const newLines = lines.filter(line => line.trim() !== rule);
-      let newContent = newLines.join('\n');
+      let newContent = kept.join('\n');
       if (newContent && !newContent.endsWith('\n')) {
         newContent += '\n';
       }
@@ -165,15 +300,10 @@ class GitHubAPI {
 
     const attempt = async () => {
       const { content, sha } = await this.getFileContent(filePath);
-      const rule = `DOMAIN-SUFFIX,${domain}`;
-      if (content.includes(rule)) {
+      if (isDomainCovered(content, domain)) {
         throw new Error('该域名已存在于规则文件中');
       }
-      let newContent = content;
-      if (newContent && !newContent.endsWith('\n')) {
-        newContent += '\n';
-      }
-      newContent += rule + '\n';
+      const newContent = appendRule(content, domain);
       const commitMessage = `Add ${domain} to ${filePath}`;
       await this.updateFile(filePath, newContent, sha, commitMessage);
     };

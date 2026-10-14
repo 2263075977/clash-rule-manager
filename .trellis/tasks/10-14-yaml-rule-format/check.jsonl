@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "popup/options 人工验证清单与技术债表,核对本任务未越界引入新债"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "本层边界清单与'只改了一侧'检查项,确认 storage 键与消费点未被漏改"}

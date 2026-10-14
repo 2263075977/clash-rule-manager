@@ -2,8 +2,8 @@
 
 // 默认规则分组配置
 const defaultRuleGroups = [
-  { name: '直连规则', path: 'direct.txt', type: 'direct' },
-  { name: '代理规则', path: 'proxy.txt', type: 'proxy' }
+  { name: '直连规则', path: 'direct.yaml', type: 'direct' },
+  { name: '代理规则', path: 'proxy.yaml', type: 'proxy' }
 ];
 
 // 状态检测超时时间（毫秒）

@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "写入前修补行尾、UTF-8 编解码、锁与并发、人工验证清单——本次改动的核心约束来源"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "本任务要改写的 GitHub 规则文件契约表、判重与删除语义都在此文件,需同步更新"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "业务错误文案(该域名已存在/不存在)与 error.status 契约,不得改坏"}

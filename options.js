@@ -119,7 +119,7 @@ function addRuleGroupItem(name = '', path = '', provider = '') {
 
   const pathInput = document.createElement('input');
   pathInput.type = 'text';
-  pathInput.placeholder = '规则文件路径 (如: office.txt)';
+  pathInput.placeholder = '规则文件路径 (如: office.yaml)';
   pathInput.className = 'group-path';
   pathInput.value = path;
   pathInput.required = true;
