@@ -68,9 +68,9 @@
 
 ### Testing
 
-- [OK] [OK] 独立验证 3 套:纯函数断言 54/55(1 项为 design 允许的二选一)、stub fetch 端到端 17/0、PyYAML 解析 7/7 合法
-- [OK] [OK] 锁 + 409 重试脚手架逐字未动(diff 仅 11 行核心逻辑);popup.js/clash-api.js/manifest.json/html 零改动;无新增依赖
-- [OK] [OK] 托管文件零改动;交付物恰为 8 文件,无表外改动
+- [OK] 独立验证 3 套:纯函数断言 54/55(1 项为 design 允许的二选一)、stub fetch 端到端 17/0、PyYAML 解析 7/7 合法
+- [OK] 锁 + 409 重试脚手架逐字未动(diff 仅 11 行核心逻辑);popup.js/clash-api.js/manifest.json/html 零改动;无新增依赖
+- [OK] 托管文件零改动;交付物恰为 8 文件,无表外改动
 
 ### Status
 
