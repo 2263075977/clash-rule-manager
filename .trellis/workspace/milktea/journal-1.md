@@ -62,9 +62,9 @@
 
 | Hash | Message |
 |------|---------|
-| `24d66fe` | feat: 规则文件读写切换为 mihomo yaml 格式 |
-| `bb4b270` | docs: 同步 yaml 规则文件契约 |
-| `af14f71` | chore(task): archive 10-14-yaml-rule-format |
+| `ff07801` | feat: 规则文件读写切换为 mihomo yaml 格式 |
+| `b186a22` | docs: 同步 yaml 规则文件契约 |
+| `92c1721` | chore(task): archive 10-14-yaml-rule-format |
 
 ### Testing
 
