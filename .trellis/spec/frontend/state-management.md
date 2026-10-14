@@ -90,7 +90,19 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 ## Server State
 
-"服务端状态"= GitHub 仓库中的规则文件内容。
+"服务端状态"= GitHub 仓库中的规则文件内容(mihomo `behavior: domain` + `format: yaml`)。
+
+### 规则文件路径与格式
+
+| 项目 | 约定 |
+|------|------|
+| 默认路径 | `shared.js` 的 `defaultRuleGroups` = `direct.yaml` / `proxy.yaml` |
+| 文件内容 | yaml `payload` 数组;规则行为 `  - '+.<domain>'` |
+| 存在性检测 | `GitHubAPI.checkDomainExists` → `isDomainCovered`,按解析后语义判重(兼容 `+.` / 裸值 / `DOMAIN,` / `DOMAIN-SUFFIX,`)|
+| 状态键 | `domainStatusMap` 仍以 `Group.path`(如 `direct.yaml`)为键,与文件格式无关 |
+
+> **UI 层不解析规则内容**。`popup.js` 只把 `group.path` 与 `currentDomain` 透传给 `GitHubAPI`,
+> 内容格式的完整契约见 `../backend/database-guidelines.md` 的"GitHub 规则文件"。
 
 ### 不缓存原则
 

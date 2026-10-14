@@ -87,15 +87,16 @@ const response = await fetch(url, {
 ### 必须: 追加内容前修补行尾
 
 ```js
-// github-api.js:172-176
-let newContent = content;
+// github-api.js:appendRule —— 插入后确保文件以 \n 结尾
+let newContent = lines.join('\n');
 if (newContent && !newContent.endsWith('\n')) {
   newContent += '\n';
 }
-newContent += rule + '\n';
 ```
 
-若省略,新规则会**拼接到最后一行末尾**,产生 `DOMAIN-SUFFIX,a.comDOMAIN-SUFFIX,b.com`。
+若省略,新规则会**拼接到最后一行末尾**,产生 `  - '+.a.com'  - '+.b.com'`。
+
+> 注意:写入 yaml 规则的插入位置**不是**文件 EOF,而是**最后一个规则行之后**(见 `database-guidelines.md` 的规则文件契约)。追加前修补行尾仍然适用。
 
 ---
 
@@ -157,10 +158,10 @@ console.error('request headers:', headers);   // headers 含 Authorization
 
 | # | 场景 | 期望 |
 |---|------|------|
-| 1 | 添加域名到存在的文件 | 文件末尾新增一行,提交产生 |
+| 1 | 添加域名到存在的文件 | 新规则插入**最后一个规则行之后**(非 EOF),提交产生 |
 | 2 | 添加已存在的域名 | 提示"该域名已存在",**无**提交产生 |
-| 3 | 添加到不存在的文件 | 视为空文件,成功创建并写入 |
-| 4 | 删除存在的域名 | 该行被移除,**保留**其他行 |
+| 3 | 添加到不存在的文件 | 视为空文件,产出 `payload:` + 一行规则,成功创建并写入 |
+| 4 | 删除存在的域名 | 所有语义匹配行被移除,**逐字节保留**其他行 |
 | 5 | 删除不存在的域名 | 提示"该域名不存在" |
 | 6 | 错误 Token | 提示"Token 无效"(非"未添加") |
 | 7 | 含中文注释的规则文件 | 读写后中文**完好无损** |
@@ -168,6 +169,7 @@ console.error('request headers:', headers);   // headers 含 Authorization
 | 9 | 文件末尾无换行符 | 新规则**另起一行**,未拼接 |
 | 10 | 配置 Clash API 后添加 | 提示含"Clash 规则已更新" |
 | 11 | Clash API 不可达 | 仍提示添加成功(仅无 Clash 提示) |
+| 12 | 只有注释 / 只有 `payload:` 的文件 | 添加后 `payload:` 恰好出现一次,无重复键 |
 
 > **若将来引入测试**: `github-api.js` 已将 `fetch` 直接调用集中于少数方法,可通过 stub 全局 `fetch` 在 Node 中测试。但 `shared.js` 用的是 `const` 全局,需先补 `module.exports` 才能 `require`。
 
@@ -185,6 +187,8 @@ console.error('request headers:', headers);   // headers 含 Authorization
 - [ ] 涉及 409 的路径是否重新读取而非复用旧 `sha`?
 - [ ] Base64 处理是否经由 `TextEncoder`/`TextDecoder`?
 - [ ] 追加内容前是否修补了行尾 `\n`?
+- [ ] 是否按**解析后语义**(而非子串/字面量)判重与删除?
+- [ ] `wildcard` / `keyword` 是否被正确地排除在判重与删除之外?
 - [ ] 是否向日志/UI 泄露了 Token / secret?
 - [ ] 是否引入了对 DOM 的依赖?
 - [ ] 新的共享常量是否加到了 `shared.js` 而非各自硬编码?

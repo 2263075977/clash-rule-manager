@@ -47,13 +47,16 @@ git clone https://github.com/2263075977/clash-rule-manager.git
 
 在目标 GitHub 仓库中创建规则文件。**文件不存在也不会报错** —— 首次添加域名时会自动创建。
 
-规则文件格式为每行一条:
+规则文件采用 mihomo `rule-providers` 的 `behavior: domain` + `format: yaml` 契约,内容为 yaml 数组:
 
-```
-DOMAIN-SUFFIX,example.com
+```yaml
+# 直连规则
+payload:
+  - '+.example.com'
 ```
 
-> 文件可以为空,也可以包含中文注释。
+> `+.example.com` 匹配 `example.com` 自身及其多级子域。文件可以为空,也可以包含中文注释。
+> 插件**读取/判重/删除**同时兼容历史写法(裸值 `example.com`、`DOMAIN,`、`DOMAIN-SUFFIX,`),无需手动清理旧数据。
 
 ### 3. 配置插件
 
@@ -76,7 +79,7 @@ DOMAIN-SUFFIX,example.com
 | 字段 | 必填 | 说明 |
 |------|------|------|
 | 显示名称 | ✅ | 如"直连规则"、"办公网络" |
-| 规则文件路径 | ✅ | 仓库内相对路径,如 `direct.txt` |
+| 规则文件路径 | ✅ | 仓库内相对路径,如 `direct.yaml` |
 | Clash Provider 名称 | ➖ | 留空则不触发自动重载 |
 
 > **提示**: 显示名中包含"直连"会使用蓝色按钮样式,包含"代理"使用另一种样式;其他名称按代理样式显示。
@@ -137,6 +140,16 @@ clash-rule-manager/
 └── README.md          # 本文件
 ```
 
+默认分组指向的目标仓库中的文件(由插件写入,非本插件仓库):
+
+```
+<你的规则仓库>/
+├── direct.yaml        # 直连规则(Clash provider: private_direct)
+├── proxy.yaml         # 代理规则(Clash provider: private_proxy)
+├── direct.txt         # ↓ 由仓库 CI 从 yaml 单向生成的 Surge 派生物
+└── proxy.txt          #   无需手动维护
+```
+
 开发相关文档位于 `.trellis/`(由 [Trellis](https://github.com/mindfoldhq/trellis) 管理),包含编码规范与任务记录。
 
 ## 常见问题
@@ -152,6 +165,14 @@ A: 检查 Token 是否正确、是否有 `repo` 权限、是否已过期。
 ### Q: 提示"文件不存在"
 
 A: 规则文件路径有误,或 Token 对该仓库无访问权限。注意**读取**不存在的文件不会报错,此提示通常出现在**写入**阶段。
+
+### Q: 应该把路径填成 `.txt` 还是 `.yaml`?
+
+A: 填 **`.yaml`**(如 `direct.yaml` / `proxy.yaml`)。Clash 的 `rule-providers` 若使用 `behavior: domain` + `format: yaml`,读的就是 yaml 文件;`.txt` 通常是由 CI 从 yaml 生成的 Surge 派生物。把插件路径指向 `yaml` 可避免"插件写的文件与 Clash 实际读取的文件不是同一份"。
+
+### Q: 旧文件里是 `DOMAIN-SUFFIX,example.com` 这种写法,需要手动改吗?
+
+A: 不需要。插件的**读取/判重/删除**同时兼容 yaml `+.`、yaml 裸值、`DOMAIN,` 与 `DOMAIN-SUFFIX,` 四种写法;新写入的规则统一为 yaml 格式(`  - '+.example.com'`)。
 
 ### Q: 提示"该域名已存在"
 

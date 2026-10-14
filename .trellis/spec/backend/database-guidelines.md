@@ -11,7 +11,7 @@
 | 层 | 载体 | 存什么 | 权威性 |
 |----|------|--------|--------|
 | 配置存储 | `chrome.storage.sync` | Token、仓库坐标、规则分组、Clash API 设置 | 本地唯一真源 |
-| 数据存储 | 远端 GitHub 仓库的规则文件 | `DOMAIN-SUFFIX,example.com` 规则行 | 远端唯一真源 |
+| 数据存储 | 远端 GitHub 仓库的规则文件 | `  - '+.example.com'`(mihomo `behavior: domain` + `format: yaml`) | 远端唯一真源 |
 
 > **核心原则**: 配置以本地为准,规则以远端为准。**不要**把规则内容缓存到 storage,也不要试图在 storage 里维护规则副本 —— 会与远端漂移。
 
@@ -38,7 +38,7 @@
 ```js
 {
   name: string,      // 必填,显示名(如 '直连规则')
-  path: string,      // 必填,仓库内相对路径(如 'direct.txt')
+  path: string,      // 必填,仓库内相对路径(如 'direct.yaml')
   provider?: string  // 可选,Clash provider 名,用于写后重载
 }
 ```
@@ -85,6 +85,8 @@ if (!groups || groups.length === 0) {
 > **Warning**: 迁移产物中带有 `type: 'direct' | 'proxy'` 字段,但**新写入的 `ruleGroups` 不包含 `type`**。
 > 也就是说 `type` 只在迁移路径出现。任何依赖 `group.type` 的逻辑都必须提供回退 —— `popup.js` 的 `getButtonClass()` 正是因此同时判断 `name.includes('直连')` 和 `type === 'direct'`。
 
+> **Warning**: 迁移回退路径中的 `'direct.txt'` / `'proxy.txt'` 是**有意保留**的。该分支仅当用户设置了 `directFile`/`proxyFile` 中**恰好一个**时进入,而旧用户的另一个文件从来就是 `.txt`;改成 `.yaml` 反而会指向不存在的文件。新装/默认用户走 `defaultRuleGroups`(`direct.yaml`/`proxy.yaml`)。
+
 ### 缺陷(已知,勿复制)
 
 `JSON.parse(JSON.stringify(defaultRuleGroups))` 这种"深拷贝"方式说明 `defaultRuleGroups` 是**共享可变对象**。虽然 `renderRuleGroups` 不直接改写它,但这是脆弱的 —— 新增分组编辑功能时极易污染默认值。
@@ -97,33 +99,52 @@ if (!groups || groups.length === 0) {
 
 | 项目 | 约定 |
 |------|------|
-| 路径 | `Group.path` 相对路径,如 `direct.txt` |
-| 格式 | 每行一条 `DOMAIN-SUFFIX,<domain>` |
-| 换行 | 追加前确保文件以 `\n` 结尾,再追加新行 |
-| 重复判定 | **字符串包含**(`content.includes(rule)`),非按行解析 |
+| 路径 | `Group.path` 相对路径,如 `direct.yaml` |
+| 格式 | mihomo `rule-providers` 的 `behavior: domain` + `format: yaml`;规则行为 yaml 数组项 `  - '+.<domain>'` |
+| 写入位置 | **最后一个规则行之后**(沿用它推断缩进),而非文件 EOF;理由:分组注释为块前置,EOF 追加会归入错误的注释块 |
+| 缩进 | 按文件已存在的规则行缩进推断,无规则行时退化 2 空格 |
+| 换行 | 写入后确保文件以 `\n` 结尾 |
+| 重复判定 | **按解析后的语义**比对(`isDomainCovered`),仅 `suffix` / `exact` 参与 |
+| 删除判定 | **按解析后的语义**比对,删除**所有**归一化后等于目标的 `suffix` / `exact` 行 |
 | 编码 | UTF-8,必须经 `base64Encode`/`base64Decode` |
 | 版本控制 | 写入需携带 `sha`(GitHub API 乐观锁) |
 
-### 写后文件形态(尾部)
+### 规则归一化契约(`parseRuleLine`)
+
+| 写法 | kind | value |
+|------|------|-------|
+| `'+.example.com'` / `DOMAIN-SUFFIX,example.com` | `suffix` | `example.com` |
+| `'example.com'`(yaml 裸值) / `DOMAIN,example.com` | `exact` | `example.com` |
+| `'*.example.com'` / `'.example.com'` | `wildcard` | `example.com` |
+| `DOMAIN-KEYWORD,foo` | `keyword` | `foo` |
+| 其他(`GEOSITE,` / `IP-CIDR,` / `RULE-SET,` / 注释 / 空行) | `null` | — |
+
+- `value` 一律经 `normalizeDomain()`:小写 + 去除尾随点
+- 判重(`isDomainCovered`)只在 `kind === 'suffix'` 或 `kind === 'exact'` 且 `value` 与目标相等时命中;**`wildcard` 与 `keyword` 永不参与判重,也永不被插件写入**
+- 手写行与历史数据无需清理:同名的 `+.example.com` 与裸值 `example.com` 都会被视为命中
+- `.a.com` 归类为 `wildcard`(mihomo 语义:匹配子域但**不**匹配 `a.com` 本身),因此不会被误报"已存在"或被误删
+
+### 写后文件形态
 
 ```
-DOMAIN-SUFFIX,a.com
-DOMAIN-SUFFIX,b.com
+# 分组注释
+payload:
+  - '+.a.com'
+  - '+.b.com'
 ```
-
-> **Warning**: 重复判定用的是子串匹配,因此 `DOMAIN-SUFFIX,a.com` 会被 `DOMAIN-SUFFIX,nota.com` 的行**误判为已存在**?
-> 不会 —— 因为规则行以 `,` 分隔且匹配串包含逗号,`nota.com` 中不含 `,a.com` 子串。
-> 但 `DOMAIN-SUFFIX,a.com` 与 `DOMAIN-SUFFIX,b.a.com` 的匹配仍需注意:后者包含 `a.com` 但**不包含** `,a.com`,故安全。
 
 ### 删除语义
 
 ```js
-// github-api.js:129-134
-const lines = content.split('\n');
-const newLines = lines.filter(line => line.trim() !== rule);  // 精确整行比对
+// github-api.js —— 按解析后语义精确比对,丢弃匹配行,其余逐字节保留
+const rule = parseRuleLine(rawLine);
+const hit = rule
+  && (rule.kind === 'suffix' || rule.kind === 'exact')
+  && rule.value === target;
 ```
 
-注意**添加**用 `includes`(子串),**删除**用整行 `trim()` 相等 —— 两者语义不同,勿互换。
+注意**添加**与**删除**都走同一套解析语义(非子串、非字面量),两者一致,勿改回字符串匹配。
+删除后若 `payload:` 下无规则行,**保留** `payload:` 与注释,不做空结构清理。
 
 ---
 
@@ -143,7 +164,7 @@ const newLines = lines.filter(line => line.trim() !== rule);  // 精确整行比
 | 类型 | 规则 | 示例 |
 |------|------|------|
 | storage 键 | camelCase | `clashApiUrl`、`ruleGroups` |
-| 文件路径 | 小写 + `.txt` | `direct.txt`、`office.txt` |
+| 文件路径 | 小写 + `.yaml` | `direct.yaml`、`office.yaml` |
 | 分组显示名 | 中文 + "规则"后缀(约定,非强制) | `直连规则` |
 
 ---
