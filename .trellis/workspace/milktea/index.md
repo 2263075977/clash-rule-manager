@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 2
+- **Total Sessions**: 3
 - **Last Active**: 2026-10-14
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~83 | Active |
+| `journal-1.md` | ~124 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 3 | 2026-10-14 | README 与 spec 补齐规则文件路径的子目录前缀说明 | `d9d594d` | `main` |
 | 2 | 2026-10-14 | 规则文件读写切换为 mihomo yaml 格式 | `ff07801`, `b186a22`, `92c1721` | `main` |
 | 1 | 2026-10-13 | 补齐 Trellis spec 规范并同步 README | `1551413` | `main` |
 <!-- @@@/auto:session-history -->
