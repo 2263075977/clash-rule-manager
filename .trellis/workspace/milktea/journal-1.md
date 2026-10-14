@@ -119,6 +119,6 @@
 
 ### Next Steps
 
-- 人工:git push origin main(7 个提交,finish-work 不 push)
+- 人工:git push origin main(9 个提交,finish-work 不 push)
 - 人工:插件设置填 mihomo/direct.yaml + Provider private_direct;mihomo/proxy.yaml + Provider private_proxy
 - 另立任务(非目标):读取到 404 但用户可能期望文件存在时的告警/二次确认 —— 属产品行为变更,本次有意不做(避免隐式兜底让路径语义更模糊)
